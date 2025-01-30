@@ -21,48 +21,36 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
 app.get("/", async (req, res) => {
-  //Write your code here.
-  var result = await db.query(
-    "SELECT country_code FROM visited_countries",
-    (err, res) => {
-      if (err) {
-        console.error("Error Executing query: ", err.stack);
-      } else {
-        result = res.rows;
-        visited_countries.push(result)
-      }
-      db.end();
-    }
-  );
-
-  res.render("index.ejs", {
-    countries: visited_countries,
-    total: visited_countries.length,
-  });
+  try {
+    const result = await db.query("SELECT country_code FROM visited_countries");
+    visited_countries = result.rows.map((row) => row.country_code); // Extract the country codes
+    res.render("index.ejs", {
+      countries: visited_countries,
+      total: visited_countries.length,
+    });
+  } catch (err) {
+    console.error("Error Executing query: ", err.stack);
+    res.status(500).send("Database query failed");
+  }
 });
 
 app.post("/add", async (req, res) => {
-  var result = await db.query(
-    `INSERT INTO visited_countries (country_code) VALUES (${req.body.country})`,
-    (err, res) => {
-      if (err) {
-        console.error("Error Executing query: ", err.stack);
-      } else {
-        result = res.rows;
-      }
-      db.end();
-    }
-  );
+  const country = req.body.country;
+  try {
+    // Use parameterized query to prevent SQL injection
+    await db.query("INSERT INTO visited_countries (country_code) VALUES ($1)", [
+      country,
+    ]);
+    visited_countries.push(country); // Update the visited_countries list
 
-  const visisted = req.body.country;
-  visited_countries.push(visisted);
-
-  console.log(visited_countries);
-
-  res.render("index.ejs", {
-    countries: visited_countries,
-    total: visited_countries.length,
-  });
+    res.render("index.ejs", {
+      countries: visited_countries,
+      total: visited_countries.length,
+    });
+  } catch (err) {
+    console.error("Error Executing query: ", err.stack);
+    res.status(500).send("Failed to add country");
+  }
 });
 
 app.listen(port, () => {
